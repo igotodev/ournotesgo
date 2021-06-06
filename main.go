@@ -92,11 +92,12 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 	title := r.FormValue("title")
 	note := r.FormValue("note")
 	//fmt.Fprintln(w, title+" "+note)
-	if strings.TrimSpace(title) != "" && strings.TrimSpace(note) != "" {
+	if strings.TrimSpace(title) != "" && strings.TrimSpace(note) != "" && len([]byte(title)) < 255 && len([]byte(note)) < 255 {
 		db, err := sql.Open("mysql", signDB)
 		checkErr(err)
 		defer db.Close()
-		data := fmt.Sprintf("INSERT INTO `notes` (`title`, `note`, `time`) VALUES ('%s', '%s', '%s');", title, note, time.Now().Format("2006/01/02 15:04:05"))
+		data := fmt.Sprintf("INSERT INTO `notes` (`title`, `note`, `time`) VALUES ('%s', '%s', '%s');",
+			title, note, time.Now().Format("2006/01/02 15:04:05"))
 		result, err := db.Query(data)
 		checkErr(err)
 		defer result.Close()
