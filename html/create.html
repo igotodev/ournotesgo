@@ -1,0 +1,19 @@
+{{ define "create" }}
+{{ template "header" }}
+<main class="container-sm col-sm-4">
+    <div class="flex-column align-self-center">
+  <h2 class="cover-heading my-3 text-warning">add a note</h2>
+  <form action="/save-art" method="post">
+    <div class="mb-3">
+    <input class="form-control" type="text" name="title" id="title" placeholder="enter the title name">
+    </div>
+<div class="mb-3"> 
+    <textarea class="form-control" name="note" id="note" rows="5" placeholder="enter the note"></textarea>
+</div>
+    <button class="btn btn-info" type="submit">create</button>
+  </form>
+  
+</div>
+</main>
+{{ template "footer" }}
+{{ end }}
