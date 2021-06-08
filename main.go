@@ -30,9 +30,10 @@ type ArticleDB struct {
 
 var allPosts = []ArticleDB{}
 
-//for basic auth
-var admins = map[string]string{
-	"admin": "password", // example
+type UsersDB struct {
+	Login    string `json:"login"`
+	Password string `json:"pass"`
+	Time     string `json:"time"`
 }
 
 func checkErr(err error) {
@@ -175,6 +176,27 @@ func jsonHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
+func validUsersFromDB() map[string]string {
+	db, err := sql.Open("mysql", signDB)
+	checkErr(err)
+	defer db.Close()
+	result, err := db.Query("SELECT `login`, `pass` FROM `auth`;")
+	checkErr(err)
+	lp := make(map[string]string)
+	var users []UsersDB
+	for result.Next() {
+		var u UsersDB
+		err := result.Scan(&u.Login, &u.Password)
+		checkErr(err)
+		users = append(users, u)
+	}
+	defer result.Close()
+	for _, v := range users {
+		lp[v.Login] = v.Password
+	}
+	return lp
+}
+
 // consolePrint printed UTF8 text from file to os.Stdout (not necessarily, it's for fun)
 func consolePrint(file string) {
 	logo, err := os.Open(file)
@@ -182,17 +204,17 @@ func consolePrint(file string) {
 		log.Fatal(err)
 	}
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	scanner := bufio.NewScanner(logo)
 	for scanner.Scan() {
 		myBytes := scanner.Text() + "\n"
 		//fmt.Println(string(myBytes))
 		for _, v := range myBytes {
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(30 * time.Millisecond)
 			fmt.Fprint(os.Stdout, string(v))
 		}
 	}
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	fmt.Fprintf(os.Stdout, "\n")
 }
 
@@ -206,7 +228,7 @@ func chiStart() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 	//router.Use(myMiddlewareAuth)
-	router.Use(middleware.BasicAuth("Enter your login and password: ", admins))
+	router.Use(middleware.BasicAuth("Enter your login and password: ", validUsersFromDB()))
 	router.Use(middleware.Timeout(60 * time.Second))
 
 	router.NotFound(notFoundHandler)
