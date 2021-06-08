@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bufio"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -98,9 +99,10 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 		defer db.Close()
 		data := fmt.Sprintf("INSERT INTO `notes` (`title`, `note`, `time`) VALUES ('%s', '%s', '%s');",
 			title, note, time.Now().Format("2006/01/02 15:04:05"))
-		result, err := db.Query(data)
+		_, err = db.Exec(data)
+		//result, err := db.Query(data)
 		checkErr(err)
-		defer result.Close()
+		//defer result.Close()
 	} else {
 		http.Redirect(w, r, "/create", http.StatusNoContent)
 	}
@@ -173,7 +175,30 @@ func jsonHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
+// consolePrint printed UTF8 text from file to os.Stdout (not necessarily, it's for fun)
+func consolePrint(file string) {
+	logo, err := os.Open(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	scanner := bufio.NewScanner(logo)
+	for scanner.Scan() {
+		myBytes := scanner.Text() + "\n"
+		//fmt.Println(string(myBytes))
+		for _, v := range myBytes {
+			time.Sleep(50 * time.Millisecond)
+			fmt.Fprint(os.Stdout, string(v))
+		}
+	}
+	time.Sleep(500 * time.Millisecond)
+	fmt.Fprintf(os.Stdout, "\n")
+}
+
 func chiStart() {
+	consolePrint("warning.txt")
+
 	router := chi.NewRouter()
 
 	router.Use(middleware.RequestID)
@@ -204,6 +229,7 @@ func chiStart() {
 	}
 	//fmt.Fprintf(os.Stdout, "%s server is running on port %s\n", time.Now().Format("2006/01/02 15:04:05"), os.Getenv("PORT"))
 	fmt.Fprintf(os.Stdout, "%s server is running on port 8181\n", time.Now().Format("2006/01/02 15:04:05"))
+	//log.Fatal(server.ListenAndServeTLS("yourcert.crt", "yourkey.key"))
 	log.Fatal(server.ListenAndServe())
 }
 
