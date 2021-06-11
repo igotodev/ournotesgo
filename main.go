@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"html/template"
 	"log"
@@ -21,6 +22,8 @@ import (
 
 const signDB string = "root:password@tcp(localhost:3306)/yourdb" // example
 
+var myDB *sql.DB
+
 type ArticleDB struct {
 	Id    int    `json:"id"`
 	Title string `json:"title"`
@@ -31,9 +34,9 @@ type ArticleDB struct {
 var allPosts = []ArticleDB{}
 
 type UsersDB struct {
-	Login    string `json:"login"`
-	Password string `json:"pass"`
-	Time     string `json:"time"`
+	Login    string
+	Password string
+	Time     string
 }
 
 func checkErr(err error) {
@@ -43,10 +46,7 @@ func checkErr(err error) {
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-	db, err := sql.Open("mysql", signDB)
-	checkErr(err)
-	defer db.Close()
-	result, err := db.Query("SELECT * FROM `notes`")
+	result, err := myDB.Query("SELECT * FROM `notes`")
 	checkErr(err)
 
 	allPosts = []ArticleDB{}
@@ -93,14 +93,11 @@ func createHandler(w http.ResponseWriter, r *http.Request) {
 func saveHandler(w http.ResponseWriter, r *http.Request) {
 	title := r.FormValue("title")
 	note := r.FormValue("note")
-	//fmt.Fprintln(w, title+" "+note)
+
 	if strings.TrimSpace(title) != "" && strings.TrimSpace(note) != "" && len([]byte(title)) < 255 && len([]byte(note)) < 255 {
-		db, err := sql.Open("mysql", signDB)
-		checkErr(err)
-		defer db.Close()
 		data := fmt.Sprintf("INSERT INTO `notes` (`title`, `note`, `time`) VALUES ('%s', '%s', '%s');",
 			title, note, time.Now().Format("2006/01/02 15:04:05"))
-		_, err = db.Exec(data)
+		_, err := myDB.Exec(data)
 		//result, err := db.Query(data)
 		checkErr(err)
 		//defer result.Close()
@@ -115,20 +112,16 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	if val != "" {
 		w.WriteHeader(http.StatusOK)
 
-		db, err := sql.Open("mysql", signDB)
+		result, err := myDB.Query(fmt.Sprintf("SELECT * FROM `notes` WHERE `id` = %s;", val))
 		checkErr(err)
-		defer db.Close()
-		result, err := db.Query(fmt.Sprintf("SELECT * FROM `notes` WHERE `id` = %s;", val))
 
 		note := ArticleDB{}
 
 		for result.Next() {
 			err := result.Scan(&note.Id, &note.Title, &note.Note, &note.Time)
-			//fmt.Println(note)
 			checkErr(err)
 		}
 
-		checkErr(err)
 		defer result.Close()
 
 		files := []string{
@@ -157,10 +150,7 @@ func myMiddlewareAuth(next http.Handler) http.Handler {
 */
 
 func jsonHandler(w http.ResponseWriter, r *http.Request) {
-	db, err := sql.Open("mysql", signDB)
-	checkErr(err)
-	defer db.Close()
-	result, err := db.Query("SELECT * FROM `notes`")
+	result, err := myDB.Query("SELECT * FROM `notes`")
 	checkErr(err)
 	allPosts = []ArticleDB{}
 	for result.Next() {
@@ -177,10 +167,7 @@ func jsonHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func validUsersFromDB() map[string]string {
-	db, err := sql.Open("mysql", signDB)
-	checkErr(err)
-	defer db.Close()
-	result, err := db.Query("SELECT `login`, `pass` FROM `auth`;")
+	result, err := myDB.Query("SELECT `login`, `pass` FROM `auth`;")
 	checkErr(err)
 	lp := make(map[string]string)
 	var users []UsersDB
@@ -208,7 +195,6 @@ func consolePrint(file string) {
 	scanner := bufio.NewScanner(logo)
 	for scanner.Scan() {
 		myBytes := scanner.Text() + "\n"
-		//fmt.Println(string(myBytes))
 		for _, v := range myBytes {
 			time.Sleep(30 * time.Millisecond)
 			fmt.Fprint(os.Stdout, string(v))
@@ -218,7 +204,18 @@ func consolePrint(file string) {
 	fmt.Fprintf(os.Stdout, "\n")
 }
 
+func openDB() (*sql.DB, error) {
+	db, err := sql.Open("mysql", signDB)
+	if err != nil {
+		return nil, err
+	}
+	return db, err
+}
+
 func chiStart() {
+	addr := flag.String("addr", "80", "host address")
+	flag.Parse()
+
 	consolePrint("warning.txt")
 
 	router := chi.NewRouter()
@@ -243,18 +240,22 @@ func chiStart() {
 	router.Mount("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	server := &http.Server{
-		//Addr:         ":" + os.Getenv("PORT"),
-		Addr:         ":8181",
+		Addr:         *addr,
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 	}
-	//fmt.Fprintf(os.Stdout, "%s server is running on port %s\n", time.Now().Format("2006/01/02 15:04:05"), os.Getenv("PORT"))
-	fmt.Fprintf(os.Stdout, "%s server is running on port 8181\n", time.Now().Format("2006/01/02 15:04:05"))
+	//fmt.Fprintf(os.Stdout, "%s server is running on %s\n", time.Now().Format("2006/01/02 15:04:05"), os.Getenv("PORT"))
+	fmt.Fprintf(os.Stdout, "%s server is running on %s\n", time.Now().Format("2006/01/02 15:04:05"), *addr)
 	//log.Fatal(server.ListenAndServeTLS("yourcert.crt", "yourkey.key"))
 	log.Fatal(server.ListenAndServe())
 }
 
 func main() {
+	db, err := openDB()
+	checkErr(err)
+	myDB = db
+	defer myDB.Close()
+
 	chiStart()
 }
