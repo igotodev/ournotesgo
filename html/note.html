@@ -3,7 +3,23 @@
 <main class="px-3 my-4">
   <!--<h2>your page.</h2>-->
   <!--<img src="static/img/people.png" width="80">-->
-  <p class="lead">{{ .Note }}</p>
+  
+  <div class="align-self-center">
+    <h2 class="cover-heading my-3 text-warning">add a note</h2>
+    <p class="lead">{{ .Note }}</p>
+  </div>
+    <div class="btn-group my-4">
+    <form action="/delete/{{ .Id }}" method="post">
+      <div class="mb-3 align-self-center">
+      <button class="btn btn-danger" type="submit">delete</button>
+      </div>
+    </form>
+    <form action="/" method="get">
+      <div class="mb-3 align-self-center">
+      <button class="btn btn-info" type="submit">back to notes</button>
+      </div>
+    </form>
+  </div>
 </main>
 {{ template "footer" }}
 {{ end }}

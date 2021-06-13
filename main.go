@@ -58,6 +58,10 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		allPosts = append(allPosts, post)
 	}
 
+	for i, j := 0, len(allPosts)-1; i < j; i, j = i+1, j-1 {
+		allPosts[i], allPosts[j] = allPosts[j], allPosts[i]
+	}
+
 	defer result.Close()
 
 	files := []string{
@@ -104,6 +108,20 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Redirect(w, r, "/create", http.StatusNoContent)
 	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func deleteHandler(w http.ResponseWriter, r *http.Request) {
+	val := chi.URLParam(r, "id")
+	if val != "" {
+		data := fmt.Sprintf("DELETE FROM `notes` WHERE `id`='%s';", val)
+		_, err := myDB.Exec(data)
+		//result, err := db.Query(data)
+		checkErr(err)
+	} else {
+		http.Redirect(w, r, "/notfound", http.StatusSeeOther)
+	}
+	//defer result.Close()
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -191,16 +209,16 @@ func consolePrint(file string) {
 		log.Fatal(err)
 	}
 
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 	scanner := bufio.NewScanner(logo)
 	for scanner.Scan() {
 		myBytes := scanner.Text() + "\n"
 		for _, v := range myBytes {
-			time.Sleep(30 * time.Millisecond)
+			time.Sleep(25 * time.Millisecond)
 			fmt.Fprint(os.Stdout, string(v))
 		}
 	}
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 	fmt.Fprintf(os.Stdout, "\n")
 }
 
@@ -213,7 +231,7 @@ func openDB() (*sql.DB, error) {
 }
 
 func chiStart() {
-	addr := flag.String("addr", "80", "host address")
+	addr := flag.String("addr", ":80", "host address")
 	flag.Parse()
 
 	consolePrint("warning.txt")
@@ -236,6 +254,7 @@ func chiStart() {
 	router.Get("/json", jsonHandler)
 
 	router.Post("/save-art", saveHandler)
+	router.Post("/delete/{id:[0-9]+}", deleteHandler)
 
 	router.Mount("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
