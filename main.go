@@ -29,6 +29,7 @@ type ArticleDB struct {
 	Title string `json:"title"`
 	Note  string `json:"note"`
 	Time  string `json:"time"`
+	Count int    `json:"count"`
 }
 
 var allPosts = []ArticleDB{}
@@ -48,13 +49,15 @@ func checkErr(err error) {
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	result, err := myDB.Query("SELECT * FROM `notes`")
 	checkErr(err)
-
+	var cnt int = 1
 	allPosts = []ArticleDB{}
 	for result.Next() {
 		var post ArticleDB
 		err := result.Scan(&post.Id, &post.Title, &post.Note, &post.Time)
 		checkErr(err)
 
+		post.Count = cnt
+		cnt++
 		allPosts = append(allPosts, post)
 	}
 
@@ -170,12 +173,14 @@ func myMiddlewareAuth(next http.Handler) http.Handler {
 func jsonHandler(w http.ResponseWriter, r *http.Request) {
 	result, err := myDB.Query("SELECT * FROM `notes`")
 	checkErr(err)
+	var cnt int = 1
 	allPosts = []ArticleDB{}
 	for result.Next() {
 		var post ArticleDB
 		err := result.Scan(&post.Id, &post.Title, &post.Note, &post.Time)
 		checkErr(err)
-
+		post.Count = cnt
+		cnt++
 		allPosts = append(allPosts, post)
 	}
 	defer result.Close()
