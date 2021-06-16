@@ -16,6 +16,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	uuid "github.com/satori/go.uuid"
+	"golang.org/x/crypto/bcrypt"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -35,9 +37,11 @@ type ArticleDB struct {
 var allPosts = []ArticleDB{}
 
 type UsersDB struct {
-	Login    string
-	Password string
-	Time     string
+	Login     string
+	Password  string
+	Time      string
+	Cookie    string
+	NewCookie string
 }
 
 func checkErr(err error) {
@@ -160,15 +164,47 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-/*
-// middleware for user Auth
-func myMiddlewareAuth(next http.Handler) http.Handler {
+// middleware for users cookies
+func checkCookiesMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//code will be here
+		c, err := r.Cookie("session_token")
+		if err != nil {
+			if err == http.ErrNoCookie {
+				// If the cookie is not set, return an unauthorized status
+				//w.WriteHeader(http.StatusUnauthorized)
+				http.Redirect(w, r, "/signup", http.StatusSeeOther)
+				return
+			}
+			// For any other type of error, return a bad request status
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		sessionToken := c.Value
+
+		trueTkn := ""
+
+		result, err := myDB.Query("SELECT `cookie` FROM `auth`;")
+		checkErr(err)
+		defer result.Close()
+
+		u := UsersDB{}
+
+		for result.Next() {
+			err := result.Scan(&u.Cookie)
+			checkErr(err)
+			if u.Cookie == sessionToken {
+				trueTkn = u.Cookie
+			}
+		}
+
+		if sessionToken != trueTkn {
+			//w.WriteHeader(http.StatusUnauthorized)
+			http.Redirect(w, r, "/signup", http.StatusSeeOther)
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }
-*/
 
 func jsonHandler(w http.ResponseWriter, r *http.Request) {
 	result, err := myDB.Query("SELECT * FROM `notes`")
@@ -189,22 +225,109 @@ func jsonHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
-func validUsersFromDB() map[string]string {
-	result, err := myDB.Query("SELECT `login`, `pass` FROM `auth`;")
+//----------------------------
+func validUserFromDB(login string) map[string]string {
+	data := fmt.Sprintf("SELECT `pass` FROM `auth` WHERE `login`='%s';", login)
+	result, err := myDB.Query(data)
 	checkErr(err)
 	lp := make(map[string]string)
-	var users []UsersDB
+	var user UsersDB
 	for result.Next() {
-		var u UsersDB
-		err := result.Scan(&u.Login, &u.Password)
+		err := result.Scan(&user.Password)
 		checkErr(err)
-		users = append(users, u)
+		lp[login] = user.Password
 	}
 	defer result.Close()
-	for _, v := range users {
-		lp[v.Login] = v.Password
-	}
+
 	return lp
+}
+
+func signinHandler(w http.ResponseWriter, r *http.Request) {
+	files := []string{
+		"html/signin.html",
+		"html/header.html",
+		"html/footer.html",
+	}
+	tmpl, err := template.ParseFiles(files...)
+	checkErr(err)
+	tmpl.ExecuteTemplate(w, "signin", nil)
+}
+
+func signupHandler(w http.ResponseWriter, r *http.Request) {
+	files := []string{
+		"html/signup.html",
+		"html/header.html",
+		"html/footer.html",
+	}
+	tmpl, err := template.ParseFiles(files...)
+	checkErr(err)
+	tmpl.ExecuteTemplate(w, "signup", nil)
+}
+
+func regHandler(w http.ResponseWriter, r *http.Request) {
+	login := r.FormValue("login")
+	pass := r.FormValue("pass")
+
+	if strings.TrimSpace(login) != "" && strings.TrimSpace(pass) != "" {
+		//db, err := sql.Open("mysql", signDB)
+		//checkErr(err)
+		//defer db.Close()
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(pass), 8)
+		checkErr(err)
+		data := fmt.Sprintf("INSERT INTO `auth` (`login`, `pass`, `time`, `cookie`, `newcookie`) VALUES ('%s', '%s', '%s', '%s', '%s');",
+			login, hashedPassword, time.Now().Format("2006/01/02 15:04:05"), "0", "0")
+		result, err := myDB.Query(data)
+		checkErr(err)
+		defer result.Close()
+	} else {
+		http.Redirect(w, r, "/signup", http.StatusNoContent)
+	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func authHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.FormValue("login")
+	pass := r.FormValue("pass")
+	//fmt.Println(username, pass)
+	if strings.TrimSpace(username) != "" && strings.TrimSpace(pass) != "" && len([]byte(username)) < 255 && len([]byte(pass)) < 255 {
+		valUser := validUserFromDB(strings.TrimSpace(username))
+
+		// Get the expected password from our in memory map
+		expectedPassword, ok := valUser[username]
+
+		// If a password exists for the given user
+		// AND, if it is the same as the password we received, the we can move ahead
+		// if NOT, then we return an "Unauthorized" status
+		if !ok {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		} else if err := bcrypt.CompareHashAndPassword([]byte(expectedPassword), []byte(pass)); err != nil {
+			// Compare the stored hashed password, with the hashed version of the password that was received
+			// If the two passwords don't match, return a 401 status
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Create a new random session token
+		sessionToken := uuid.NewV4().String()
+
+		data := fmt.Sprintf("UPDATE `auth` SET `cookie`='%s' WHERE `login`='%s';", sessionToken, username)
+		result, err := myDB.Query(data)
+		checkErr(err)
+		defer result.Close()
+
+		// Finally, we set the client cookie for "session_token" as the session token we just generated
+		// we also set an expiry time of 12 hours, the same as the cache
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session_token",
+			Value:   sessionToken,
+			Expires: time.Now().Add(12 * time.Hour),
+			Path:    "/",
+		})
+	} else {
+		http.Redirect(w, r, "/signup", http.StatusNoContent)
+	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // consolePrint printed UTF8 text from file to os.Stdout (not necessarily, it's for fun)
@@ -214,7 +337,7 @@ func consolePrint(file string) {
 		log.Fatal(err)
 	}
 
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	scanner := bufio.NewScanner(logo)
 	for scanner.Scan() {
 		myBytes := scanner.Text() + "\n"
@@ -223,7 +346,7 @@ func consolePrint(file string) {
 			fmt.Fprint(os.Stdout, string(v))
 		}
 	}
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	fmt.Fprintf(os.Stdout, "\n")
 }
 
@@ -243,25 +366,43 @@ func chiStart() {
 
 	router := chi.NewRouter()
 
-	router.Use(middleware.RequestID)
-	router.Use(middleware.RealIP)
-	router.Use(middleware.Logger)
-	router.Use(middleware.Recoverer)
-	//router.Use(myMiddlewareAuth)
-	router.Use(middleware.BasicAuth("Enter your login and password: ", validUsersFromDB()))
-	router.Use(middleware.Timeout(60 * time.Second))
+	router.Group(func(r chi.Router) {
 
-	router.NotFound(notFoundHandler)
+		r.Use(middleware.RequestID)
+		r.Use(middleware.RealIP)
+		r.Use(middleware.Logger)
+		r.Use(middleware.Recoverer)
 
-	router.Get("/", indexHandler)
-	router.Get("/create", createHandler)
-	router.Get("/note/{id:[0-9]+}", noteHandler)
-	router.Get("/json", jsonHandler)
+		r.Use(checkCookiesMiddleware)
 
-	router.Post("/save-art", saveHandler)
-	router.Post("/delete/{id:[0-9]+}", deleteHandler)
+		r.Use(middleware.Timeout(60 * time.Second))
 
-	router.Mount("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+		r.NotFound(notFoundHandler)
+		r.Get("/", indexHandler)
+		r.Get("/create", createHandler)
+		r.Get("/note/{id:[0-9]+}", noteHandler)
+		r.Get("/json", jsonHandler)
+
+		r.Post("/save-art", saveHandler)
+		r.Post("/delete/{id:[0-9]+}", deleteHandler)
+
+	})
+
+	router.Group(func(r chi.Router) {
+		r.Use(middleware.RequestID)
+		r.Use(middleware.RealIP)
+		r.Use(middleware.Logger)
+		r.Use(middleware.Recoverer)
+
+		r.Use(middleware.Timeout(60 * time.Second))
+
+		r.Get("/signup", signupHandler)
+		r.Get("/signin", signinHandler)
+		r.Post("/reg", regHandler)
+		r.Post("/auth", authHandler)
+
+		r.Mount("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	})
 
 	server := &http.Server{
 		Addr:         *addr,

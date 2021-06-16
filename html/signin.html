@@ -1,0 +1,26 @@
+{{ define "signin" }}
+{{ template "header" }}
+<main class="form-signin container-sm col-sm-4">
+    <form action="/auth" method="POST">
+      <img class="mb-4" src="static/img/people.png" alt="" width="72">
+      <h1 class="h3 mb-3 fw-normal">please sign in</h1>
+  
+      <div class="form-floating my-1 text-secondary">
+        <input type="login" class="form-control" name="login" id="login" placeholder="login">
+        <label for="floatingInput">login</label>
+      </div>
+      <div class="form-floating my-1 text-secondary">
+        <input type="password" class="form-control" name="pass" id="pass" placeholder="lassword">
+        <label for="floatingPassword">password</label>
+      </div>
+  
+      <div class="checkbox mb-3">
+        <label>
+          <input type="checkbox" value="remember-me"> remember me
+        </label>
+      </div>
+      <button class="w-100 btn btn-lg btn-info" type="submit">sign in</button>
+    </form>
+  </main>
+{{ template "footer" }}
+{{ end }}

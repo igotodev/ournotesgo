@@ -1,0 +1,23 @@
+{{ define "signup" }}
+{{ template "header" }}
+<main class="form-signup container-sm col-sm-4">
+    <form action="/reg" method="POST">
+      <img class="mb-4" src="static/img/people.png" alt="" width="72">
+      <h1 class="h3 mb-3 fw-normal">please sign up</h1>
+  
+      <div class="form-floating my-1 text-secondary">
+        <input type="login" class="form-control" name="login" id="login" placeholder="login">
+        <label for="floatingInput">login</label>
+      </div>
+      <div class="form-floating my-1 text-secondary">
+        <input type="password" class="form-control" name="pass" id="pass" placeholder="lassword">
+        <label for="floatingPassword">password</label>
+      </div>
+      <button class="w-100 btn btn-lg btn-info my-2" type="submit">create account</button>
+    </form>
+  </main>
+  <div class="container-sm col-sm-4">
+    <a href="/signin" class="btn btn btn-secondary fw-bold border-dark bg-warning text-dark my-2">or sign in</a>
+  </div>
+{{ template "footer" }}
+{{ end }}
