@@ -23,7 +23,7 @@ func previewRainbow(file string) {
 	for scanner.Scan() {
 		myBytes := scanner.Text() + "\n"
 
-		color := 1
+		color := 0
 
 		for _, v := range myBytes {
 			time.Sleep(25 * time.Millisecond)
