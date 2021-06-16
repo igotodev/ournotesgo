@@ -18,7 +18,8 @@ import (
 	"github.com/muesli/termenv"
 )
 
-const signDB string = "root:password@tcp(localhost:3306)/yourdb" // example
+//const signDB string = "root:password@tcp(localhost:3306)/yourdb" // example
+const signDB string = "root:mB5nE!28JJpn@tcp(localhost:3306)/mygodb"
 
 var myDB *sql.DB
 
