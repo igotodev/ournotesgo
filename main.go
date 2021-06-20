@@ -134,7 +134,6 @@ func chiStart() {
 
 		r.Use(middleware.Timeout(60 * time.Second))
 
-		r.NotFound(notFoundHandler)
 		r.Get("/", indexHandler)
 		r.Get("/create", createHandler)
 		r.Get("/note/{id:[0-9]+}", noteHandler)
@@ -152,6 +151,7 @@ func chiStart() {
 		r.Use(middleware.Recoverer)
 
 		r.Use(middleware.Timeout(60 * time.Second))
+		r.NotFound(notFoundHandler)
 
 		r.Get("/signup", signupHandler)
 		r.Get("/signin", signinHandler)
@@ -170,7 +170,6 @@ func chiStart() {
 
 		r.Use(middleware.Timeout(60 * time.Second))
 
-		r.NotFound(notFoundHandler)
 		r.Get("/admin", adminHandler)
 		r.Post("/invite/{login:[[A-a-Z-z-0-9]+}", inviteHandler)
 	})
