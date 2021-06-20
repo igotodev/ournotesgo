@@ -61,7 +61,7 @@ func previewRainbow(file string) {
 				}
 			}
 			if color == 7 {
-				color = 1
+				color = 0
 			}
 		}
 	}

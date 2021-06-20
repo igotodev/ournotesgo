@@ -32,12 +32,13 @@ type ArticleDB struct {
 
 var allPosts = []ArticleDB{}
 
+//wihHe3gxtuBiXMb
 type UsersDB struct {
-	Login     string
-	Password  string
-	Time      string
-	Cookie    string
-	NewCookie string
+	Login    string
+	Password string
+	Time     string
+	Cookie   string
+	Invite   bool
 }
 
 func checkErr(err error) {
@@ -79,26 +80,30 @@ func checkCookiesMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		sessionToken := c.Value
-
+		trueInv := false
 		trueTkn := ""
 
-		result, err := myDB.Query("SELECT `cookie` FROM `auth`;")
+		result, err := myDB.Query("SELECT `cookie`, `invite` FROM auth;")
 		checkErr(err)
 		defer result.Close()
 
 		u := UsersDB{}
 
 		for result.Next() {
-			err := result.Scan(&u.Cookie)
+			err := result.Scan(&u.Cookie, &u.Invite)
 			checkErr(err)
 			if u.Cookie == sessionToken {
 				trueTkn = u.Cookie
+				trueInv = u.Invite
 			}
 		}
 
 		if sessionToken != trueTkn {
 			//w.WriteHeader(http.StatusUnauthorized)
 			http.Redirect(w, r, "/signup", http.StatusSeeOther)
+			return
+		} else if !trueInv {
+			http.Redirect(w, r, "/notfound", http.StatusSeeOther)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -155,6 +160,20 @@ func chiStart() {
 		r.Post("/auth", authHandler)
 
 		r.Mount("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	})
+
+	router.Group(func(r chi.Router) {
+
+		r.Use(middleware.RequestID)
+		r.Use(middleware.RealIP)
+		r.Use(middleware.Logger)
+		r.Use(middleware.Recoverer)
+
+		r.Use(middleware.Timeout(60 * time.Second))
+
+		r.NotFound(notFoundHandler)
+		r.Get("/admin", adminHandler)
+		r.Post("/invite/{login:[[A-a-Z-z-0-9]+}", inviteHandler)
 	})
 
 	server := &http.Server{

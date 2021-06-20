@@ -184,14 +184,14 @@ func regHandler(w http.ResponseWriter, r *http.Request) {
 	login = strings.TrimSpace(login)
 	pass = strings.TrimSpace(pass)
 
-	if login != "" && pass != "" {
+	if login != "" && pass != "" && len([]byte(login)) < 100 && len([]byte(pass)) < 255 {
 		//db, err := sql.Open("mysql", signDB)
 		//checkErr(err)
 		//defer db.Close()
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(pass), 8)
 		checkErr(err)
-		data := fmt.Sprintf("INSERT INTO `auth` (`login`, `pass`, `time`, `cookie`, `newcookie`) VALUES ('%s', '%s', '%s', '%s', '%s');",
-			login, hashedPassword, time.Now().Format("2006/01/02 15:04:05"), "0", "0")
+		data := fmt.Sprintf("INSERT INTO `auth` (`login`, `pass`, `time`, `cookie`, `invite`) VALUES ('%s', '%s', '%s', '%s', %v);",
+			login, hashedPassword, time.Now().Format("2006/01/02 15:04:05"), "0", false)
 		result, err := myDB.Query(data)
 		checkErr(err)
 		defer result.Close()
@@ -208,7 +208,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	username = strings.TrimSpace(username)
 	pass = strings.TrimSpace(pass)
 	//fmt.Println(username, pass)
-	if username != "" && pass != "" && len([]byte(username)) < 255 && len([]byte(pass)) < 255 {
+	if username != "" && pass != "" && len([]byte(username)) < 100 && len([]byte(pass)) < 255 {
 		valUser := validUserFromDB(username)
 
 		// Get the expected password from our in memory map
@@ -246,5 +246,80 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Redirect(w, r, "/signup", http.StatusNoContent)
 	}
+
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// admin panel for invite users (only for login 'admin')
+func adminHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("session_token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			// If the cookie is not set, return an unauthorized status
+			//w.WriteHeader(http.StatusUnauthorized)
+			http.Redirect(w, r, "/signup", http.StatusSeeOther)
+			return
+		}
+		// For any other type of error, return a bad request status
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	sessionToken := c.Value
+
+	result, err := myDB.Query("SELECT `cookie` FROM auth WHERE `login`='admin';")
+	checkErr(err)
+	defer result.Close()
+
+	u := UsersDB{}
+
+	for result.Next() {
+		err := result.Scan(&u.Cookie)
+		checkErr(err)
+		if u.Cookie != sessionToken {
+			http.Redirect(w, r, "/signup", http.StatusSeeOther)
+			return
+		}
+	}
+
+	listNotInvited, err := myDB.Query("SELECT `login`, `time`, `invite` FROM auth WHERE `invite`=false;")
+	checkErr(err)
+	defer listNotInvited.Close()
+	notInvited := []UsersDB{}
+
+	for listNotInvited.Next() {
+		var user UsersDB
+		err := listNotInvited.Scan(&user.Login, &user.Time, &user.Invite)
+		checkErr(err)
+		if !user.Invite {
+			notInvited = append(notInvited, user)
+		}
+	}
+
+	files := []string{
+		"html/admin.html",
+		"html/header.html",
+		"html/footer.html",
+	}
+
+	tmpl, err := template.ParseFiles(files...)
+	checkErr(err)
+	tmpl.ExecuteTemplate(w, "admin", notInvited)
+}
+
+// func invite a user
+func inviteHandler(w http.ResponseWriter, r *http.Request) {
+	val := chi.URLParam(r, "login")
+
+	val = strings.TrimSpace(val)
+
+	if val != "" {
+		data := fmt.Sprintf("UPDATE `auth` SET `invite`=%v WHERE `login`='%s'", true, val)
+		_, err := myDB.Exec(data)
+		//result, err := db.Query(data)
+		checkErr(err)
+	} else {
+		http.Redirect(w, r, "/notfound", http.StatusSeeOther)
+	}
+	//defer result.Close()
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
