@@ -68,7 +68,10 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 	title := r.FormValue("title")
 	note := r.FormValue("note")
 
-	if strings.TrimSpace(title) != "" && strings.TrimSpace(note) != "" && len([]byte(title)) < 255 && len([]byte(note)) < 65535 {
+	title = strings.TrimSpace(title)
+	note = strings.TrimSpace(note)
+
+	if title != "" && note != "" && len([]byte(title)) < 255 && len([]byte(note)) < 65535 {
 		data := fmt.Sprintf("INSERT INTO `notes` (`title`, `note`, `time`) VALUES ('%s', '%s', '%s');",
 			title, note, time.Now().Format("2006/01/02 15:04:05"))
 		_, err := myDB.Exec(data)
@@ -83,6 +86,9 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 
 func deleteHandler(w http.ResponseWriter, r *http.Request) {
 	val := chi.URLParam(r, "id")
+
+	val = strings.TrimSpace(val)
+
 	if val != "" {
 		data := fmt.Sprintf("DELETE FROM `notes` WHERE `id`='%s';", val)
 		_, err := myDB.Exec(data)
@@ -97,6 +103,9 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 
 func noteHandler(w http.ResponseWriter, r *http.Request) {
 	val := chi.URLParam(r, "id")
+
+	val = strings.TrimSpace(val)
+
 	if val != "" {
 		w.WriteHeader(http.StatusOK)
 
@@ -172,7 +181,10 @@ func regHandler(w http.ResponseWriter, r *http.Request) {
 	login := r.FormValue("login")
 	pass := r.FormValue("pass")
 
-	if strings.TrimSpace(login) != "" && strings.TrimSpace(pass) != "" {
+	login = strings.TrimSpace(login)
+	pass = strings.TrimSpace(pass)
+
+	if login != "" && pass != "" {
 		//db, err := sql.Open("mysql", signDB)
 		//checkErr(err)
 		//defer db.Close()
@@ -192,9 +204,12 @@ func regHandler(w http.ResponseWriter, r *http.Request) {
 func authHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("login")
 	pass := r.FormValue("pass")
+
+	username = strings.TrimSpace(username)
+	pass = strings.TrimSpace(pass)
 	//fmt.Println(username, pass)
-	if strings.TrimSpace(username) != "" && strings.TrimSpace(pass) != "" && len([]byte(username)) < 255 && len([]byte(pass)) < 255 {
-		valUser := validUserFromDB(strings.TrimSpace(username))
+	if username != "" && pass != "" && len([]byte(username)) < 255 && len([]byte(pass)) < 255 {
+		valUser := validUserFromDB(username)
 
 		// Get the expected password from our in memory map
 		expectedPassword, ok := valUser[username]
