@@ -32,7 +32,6 @@ type ArticleDB struct {
 
 var allPosts = []ArticleDB{}
 
-//wihHe3gxtuBiXMb
 type UsersDB struct {
 	Login    string
 	Password string

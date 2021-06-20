@@ -1,3 +1,8 @@
+// Attention! In order to exclude the possibility of sql-injection,
+// you need to process (filter) string parameters.
+// For this you need to write a separate filtering function
+// that meets your requirements.
+
 package main
 
 import (
