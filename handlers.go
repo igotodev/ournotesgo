@@ -1,13 +1,7 @@
-// Attention! In order to exclude the possibility of sql-injection,
-// you need to process (filter) string parameters.
-// For this you need to write a separate filtering function
-// that meets your requirements.
-
 package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
@@ -77,9 +71,9 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 	note = strings.TrimSpace(note)
 
 	if title != "" && note != "" && len([]byte(title)) < 255 && len([]byte(note)) < 65535 {
-		data := fmt.Sprintf("INSERT INTO `notes` (`title`, `note`, `time`) VALUES ('%s', '%s', '%s');",
+
+		_, err := myDB.Exec("INSERT INTO `notes` (`title`, `note`, `time`) VALUES (?, ?, ?);",
 			title, note, time.Now().Format("2006/01/02 15:04:05"))
-		_, err := myDB.Exec(data)
 		//result, err := db.Query(data)
 		checkErr(err)
 		//defer result.Close()
@@ -95,8 +89,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 	val = strings.TrimSpace(val)
 
 	if val != "" {
-		data := fmt.Sprintf("DELETE FROM `notes` WHERE `id`='%s';", val)
-		_, err := myDB.Exec(data)
+		_, err := myDB.Exec("DELETE FROM `notes` WHERE `id`=?;", val)
 		//result, err := db.Query(data)
 		checkErr(err)
 	} else {
@@ -114,7 +107,7 @@ func noteHandler(w http.ResponseWriter, r *http.Request) {
 	if val != "" {
 		w.WriteHeader(http.StatusOK)
 
-		result, err := myDB.Query(fmt.Sprintf("SELECT * FROM `notes` WHERE `id` = %s;", val))
+		result, err := myDB.Query("SELECT * FROM `notes` WHERE `id` = ?;", val)
 		checkErr(err)
 
 		note := ArticleDB{}
@@ -195,9 +188,9 @@ func regHandler(w http.ResponseWriter, r *http.Request) {
 		//defer db.Close()
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(pass), 8)
 		checkErr(err)
-		data := fmt.Sprintf("INSERT INTO `auth` (`login`, `pass`, `time`, `cookie`, `invite`) VALUES ('%s', '%s', '%s', '%s', %v);",
+
+		result, err := myDB.Query("INSERT INTO `auth` (`login`, `pass`, `time`, `cookie`, `invite`) VALUES (?, ?, ?, ?, ?);",
 			login, hashedPassword, time.Now().Format("2006/01/02 15:04:05"), "0", false)
-		result, err := myDB.Query(data)
 		checkErr(err)
 		defer result.Close()
 	} else {
@@ -235,8 +228,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		// Create a new random session token
 		sessionToken := uuid.NewV4().String()
 
-		data := fmt.Sprintf("UPDATE `auth` SET `cookie`='%s' WHERE `login`='%s';", sessionToken, username)
-		result, err := myDB.Query(data)
+		result, err := myDB.Query("UPDATE `auth` SET `cookie`=? WHERE `login`=?;", sessionToken, username)
 		checkErr(err)
 		defer result.Close()
 
@@ -318,8 +310,7 @@ func inviteHandler(w http.ResponseWriter, r *http.Request) {
 	val = strings.TrimSpace(val)
 
 	if val != "" {
-		data := fmt.Sprintf("UPDATE `auth` SET `invite`=%v WHERE `login`='%s'", true, val)
-		_, err := myDB.Exec(data)
+		_, err := myDB.Exec("UPDATE `auth` SET `invite`=? WHERE `login`=?;", true, val)
 		//result, err := db.Query(data)
 		checkErr(err)
 	} else {
